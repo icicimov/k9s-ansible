@@ -1,0 +1,42 @@
+---
+
+- name: reload systemd
+  command: systemctl daemon-reload
+
+- name: restart etcd
+  systemd:
+    name: 'etcd'
+    state: restarted
+    daemon_reload: yes
+
+- name: restart flanneld
+  systemd:
+    name: 'flanneld'
+    state: restarted
+    daemon_reload: yes
+
+- name: restart docker
+  systemd:
+    name: 'docker'
+    state: restarted
+    daemon_reload: yes
+
+- name: restart kubelet
+  systemd:
+    name: 'kubelet'
+    state: restarted
+    daemon_reload: yes
+  when: k8s_kubelet_restart 
+
+- name: restart haproxy 
+  service: name=haproxy state=restarted
+
+- name: restart syslog 
+  service: name=rsyslog state=restarted
+
+- name: restart keepalived
+  systemd:
+    name: 'keepalived'
+    state: restarted
+    daemon_reload: yes
+
