@@ -83,7 +83,17 @@ users:
     client-key: /home/igorc/k9s-ansible/files/ssl/k9s.virtual.local/admins/admin-key.pem
 ```
 
-installed locally. To check the cluster health run:
+installed locally. Add the following in the local `/etc/hosts` to configure the DNS for the hosts and the API access point via Haproxy load balancer:
+
+```
+# K8S k9s.virtual.local cluster
+192.168.0.151   k9s01.virtual.local k9s01
+192.168.0.152   k9s02.virtual.local k9s02
+192.168.0.153   k9s03.virtual.local k9s03
+192.168.0.154   k9s-api.virtual.local k9s-traefik.virtual.local
+```
+
+To check the cluster health run:
 
 ```
 kubectl get nodes -o wide
