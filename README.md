@@ -91,3 +91,11 @@ kubectl get pods -n kube-system
 ```
 
 The `admin` user and all cluster SSL certificates will be installed under `k9s-ansible/files/ssl/` directory.
+
+# Additional install
+
+To install Traefik run:
+
+```
+kubectl apply -f files/manifests/traefik
+```
