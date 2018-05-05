@@ -1,0 +1,608 @@
+k8s_kubectl_version: 'v1.8.8'
+k8s_version: "{{ k8s_kubectl_version }}"
+# https://console.cloud.google.com/gcr/images/google-containers/GLOBAL/kubernetes-dashboard-amd64?pli=1
+k8s_dashboard_version: 'v1.7.1'
+k8s_heapster_version: 'v1.4.0'
+k8s_kubedns_version: '1.14.7'
+
+# The hosts will be behind HAProxy that will load balance
+# the below 'k8s_master_host'/'k8s_master_ip' DNS/IP
+k8s_master_host: 'k9s-api.virtual.local'
+# k8s LAN IP
+k8s_master_ip: '192.168.0.154'
+# k8s LAN Default GW
+k8s_default_route: '192.168.0.1'
+k8s_master_log: '/var/log/kube-apiserver.log'
+k8s_api_secure_port: 6443
+k8s_flanneld_subnet: '10.1.0.0/16'
+k8s_pod_network: '10.2.0.0/16'
+k8s_service_ip_range: '10.3.0.0/24'
+k8s_service_ip: '10.3.0.1'
+k8s_dns_service_ip: '10.3.0.10'
+k8s_cluster_domain: 'cluster.local'
+k8s_cluster_name: 'k9s.virtual.local'
+k8s_cluster_dns: 'kube-dns' # kube-dns or coredns
+k8s_cluster_dns_setup: true
+k8s_cluster_dns_replicas: 1
+k8s_cluster_dns_autoscale: false
+k8s_apiserver_node_port_range: "30000-32767"
+k8s_system_namespace: 'kube-system'
+k8s_rbac_enabled: true
+k8s_install_dir: '/opt/kubernetes'
+k8s_certs_dir: '/srv/kubernetes'
+k8s_auth_dir: "{{ k8s_certs_dir }}"
+k8s_cri: 'docker'
+k8s_cloud_provider: ''
+k8s_template_dir: "./templates"
+k8s_kubectl_setup: false
+k8s_heapster_setup: false
+k8s_dashboard_setup: false
+
+# Traefik LB
+# nodeport mapped to 80
+k8s_traefik_port: 31285
+# nodeport mapped to 8080
+k8s_traefik_admin_port: 31286
+# nodeport mapped to 443
+k8s_traefik_ssl_port: 31287
+
+# Leave it blank if you're using flannel, otherwize use cni for Calico
+k8s_kubelet_network_plugin: ''
+k8s_kubelet_restart: true
+k8s_kubelet_anon_auth: false
+k8s_kubelet_author_mode: 'Webhook'  # default=AlwaysAllow
+k8s_kubelet_authen_token_webhook: true
+k8s_kubelet_hostname: "{{ inventory_hostname }}"
+k8s_kubelet_dir: '/var/lib/kubelet'
+k8s_kubelet_hairpin_mode: 'hairpin-veth'
+k8s_kubelet_allow_priv: true
+k8s_kubelet_enable_metrics: true
+k8s_kubelet_eviction_hard: 'memory.available<100Mi,nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<10%,imagefs.inodesFree<5%'
+k8s_kubelet_kubeconfig: "{{ k8s_kubelet_dir }}/kubeconfig"
+k8s_kubelet_default_config: '/etc/default/kubelet'
+k8s_kubelet_manifests_dir: '/etc/kubernetes/manifests'
+k8s_kubelet_ser_image_pulls: false  # we are using overlay2 so can switch this off
+k8s_kubelet_restart: true
+# kcm = kube-controller-manager
+k8s_kcm_hostname: "{{ inventory_hostname }}"
+k8s_kcm_dir: '/var/lib/kube-controller-manager'
+k8s_kcm_kubeconfig: "{{ k8s_kcm_dir }}/kubeconfig"
+k8s_kcm_log: '/var/log/kube-controller-manager.log'
+# kube-scheduler
+k8s_kube_scheduler_hostname: "{{ inventory_hostname }}"
+k8s_kube_scheduler_dir: '/var/lib/kube-scheduler'
+k8s_kube_scheduler_kubeconfig: "{{ k8s_kube_scheduler_dir }}/kubeconfig"
+k8s_kube_scheduler_log: '/var/log/kube-scheduler.log'
+# kube-proxy
+k8s_kube_proxy_hostname: "{{ inventory_hostname }}"
+k8s_kube_proxy_dir: '/var/lib/kube-proxy'
+k8s_kube_proxy_kubeconfig: "{{ k8s_kube_proxy_dir }}/kubeconfig"
+k8s_kube_proxy_log: '/var/log/kube-proxy.log'
+k8s_kube_proxy_mode: 'iptables'
+
+# Enable master nodes as workers as well
+k8s_run_pods_on_masters: true
+# Create worker nodes?
+k8s_create_worker_nodes: false
+
+## ETCD ##
+k8s_etcd_user: "etcd"
+k8s_etcd_group: "etcd"
+k8s_etcd_gid: 1501
+k8s_etcd_uid: 1501
+k8s_etcd_dir: "/var/lib/{{ k8s_etcd_user }}"
+k8s_cluster_token: "etcd-cluster-1"
+k8s_etcd_client_port: 2379
+k8s_etcd_peer_port: 2380
+k8s_etcd_flanneld_port: 4001
+k8s_etcd_peer_url_scheme: "http"
+k8s_etcd_endpoints: "http://{{ groups['k8s-masters'] | map('extract', hostvars, ['priv_ip']) | join(':2379,http://') }}:2379"
+k8s_etcd_heartbeat_interval: 1000
+k8s_etcd_election_timeout: 5000
+k8s_etcd_version: "v2.3.8"
+k8s_etcd_tarball: "etcd-{{ k8s_etcd_version }}-linux-{{ (ansible_architecture == 'x86_64') | ternary('amd64', 'i386') }}.tar.gz"
+k8s_etcd_download_url: "https://github.com/coreos/etcd/releases/download/{{ k8s_etcd_version }}/{{ k8s_etcd_tarball }}"
+
+## FLANNELD ##
+k8s_flanneld_etcd_endpoints: "{% for node in groups['k8s-masters'] %}{% if k8s_etcd_url_scheme is defined %}{{ k8s_etcd_url_scheme }}{% else %}http{% endif %}://{{ node }}:{{ k8s_etcd_flanneld_port }}{% if not loop.last %},{% endif %}{% endfor %}"
+k8s_flanneld_version: "v0.7.1"
+k8s_flanneld_download_url: "https://github.com/coreos/flannel/releases/download/{{ k8s_flanneld_version }}/flanneld-{{ (ansible_architecture == 'x86_64') | ternary('amd64', 'i386') }}"
+k8s_flanneld_binary_dest: "/usr/local/bin/flanneld"
+k8s_flanneld_logtostderr: "true"
+k8s_flanneld_ip_masq: "true"
+k8s_flanneld_subnet_dir: "/var/lib/flanneld"
+k8s_flanneld_subnet_file: "{{ k8s_flanneld_subnet_dir }}/subnet.env"
+k8s_flannel_backend_type: "vxlan"
+k8s_flannel_subnet_len: 24
+
+## DOCKER ##
+k8s_docker_engine_version: "1.12.6-0~debian-jessie"
+k8s_docker_engine_gpg_key: "58118E89F3A912897C070ADBF76221572C52609D"
+k8s_docker_engine_apt_srv: "hkp://p80.pool.sks-keyservers.net:80"
+k8s_docker_storage_driver: "overlay2"
+k8s_docker_iptables: false
+k8s_docker_ip_masq: false
+k8s_docker_ip_forward: true
+k8s_docker_log_level: 'warn'
+k8s_docker_log_driver: 'json-file'
+k8s_docker_log_max_file: 5
+k8s_docker_log_max_size: '10m'
+
+## CALICO CNI PLUGIN ##
+calico_policy_controller_cpu_limit: 100m
+calico_policy_controller_memory_limit: 256M
+calico_policy_controller_cpu_requests: 30m
+calico_policy_controller_memory_requests: 64M
+calico_image_pull_policy: "always"
+
+
+## SSL CERTS #
+k8s_ssl_local_path: "./files/ssl/{{ k8s_cluster_name }}"
+k8s_ssl_ca_path: "{{ k8s_ssl_local_path }}/ca"
+k8s_ssl_api_server_path: "{{ k8s_ssl_local_path }}/api"
+k8s_ssl_workers_path: "{{ k8s_ssl_local_path }}/workers"
+k8s_ssl_kcm_path: "{{ k8s_ssl_local_path }}/kcm"
+k8s_ssl_scheduler_path: "{{ k8s_ssl_local_path }}/scheduler"
+k8s_ssl_proxy_path: "{{ k8s_ssl_local_path }}/proxy"
+k8s_ssl_admin_path: "{{ k8s_ssl_local_path }}/admins"
+k8s_ssl_components: ['kcm', 'scheduler', 'proxy']
+k8s_ssl_bytes_encrypt: 2048
+k8s_ssl_valid_days: 10000
+
+
+# Kubelets SSL is handled by the Workers section
+k8s_ssl_config:
+ ca:
+    key_name: 'ca-key.pem'
+    csr_name: 'ca.csr'
+    subj: '/CN=kube-ca'
+    cert_name: 'ca.pem'
+ apiserver:
+    key_name: 'apiserver-key.pem'
+    csr_name: 'apiserver.csr'
+    subj: '/CN=kube-apiserver'
+    cert_name: 'apiserver.pem'
+ kcm:
+    key_name: 'controller-manager-key.pem'
+    csr_name: 'controller-manager.csr'
+    subj: '/CN=system:kube-controller-manager'
+    cert_name: 'controller-manager.pem'
+ scheduler:
+    key_name: 'scheduler-key.pem'
+    csr_name: 'cscheduler.csr'
+    subj: '/CN=system:kube-scheduler'
+    cert_name: 'scheduler.pem'
+ proxy:
+    key_name: 'proxy-key.pem'
+    csr_name: 'proxy.csr'
+    subj: '/CN=system:kube-proxy'
+    cert_name: 'proxy.pem'
+ admin:
+    key_name: 'admin-key.pem'
+    csr_name: 'admin.csr'
+    subj: '/O=system:masters/CN=kube-admin'
+    cert_name: 'admin.pem'
+
+
+k8s_openssl_config:
+  req:
+    req_extensions: 'v3_req'
+    distinguished_name: 'req_distinguished_name'
+  req_distinguished_name:
+  v3_req:
+    basicConstraints: 'CA:FALSE'
+    keyUsage: 'nonRepudiation, digitalSignature, keyEncipherment'
+    extendedKeyUsage: 'serverAuth'
+    subjectAltName: '@alt_names'
+  alt_names:
+    DNS:
+      - kubernetes
+      - kubernetes.default
+      - kubernetes.default.svc
+      - "kubernetes.default.svc.{{ k8s_cluster_domain }}"
+      - "{{ k8s_master_host }}"
+    IP:
+      - "{{ k8s_service_ip }}"
+      - "{{ k8s_master_ip }}"
+      - "{{ k8s_default_route }}"
+
+k8s_services_openssl_config:
+  req:
+    req_extensions: 'v3_req'
+    distinguished_name: 'req_distinguished_name'
+  req_distinguished_name:
+  v3_req:
+    basicConstraints: 'CA:FALSE'
+    keyUsage: 'nonRepudiation, digitalSignature, keyEncipherment'
+    extendedKeyUsage: 'clientAuth'
+
+# Apiserver client ssl cert for talking to Kubelet
+k8s_kubelets_client_openssl_config:
+  req:
+    req_extensions: 'v3_req'
+    distinguished_name: 'req_distinguished_name'
+  req_distinguished_name:
+  v3_req:
+    basicConstraints: 'CA:FALSE'
+    keyUsage: 'nonRepudiation, digitalSignature, keyEncipherment'
+    extendedKeyUsage: 'clientAuth'
+    subjectAltName: '@alt_names'
+
+# Kubelet serving and API client ssl certs
+k8s_workers_openssl_config:
+  req:
+    req_extensions: 'v3_req'
+    distinguished_name: 'req_distinguished_name'
+  req_distinguished_name:
+  v3_req:
+    basicConstraints: 'CA:FALSE'
+    keyUsage: 'nonRepudiation, digitalSignature, keyEncipherment'
+    extendedKeyUsage: 'clientAuth, serverAuth'
+    subjectAltName: '@alt_names'
+  # Do not fill in alt_names, it will automatically be generated
+  alt_names:
+
+
+## KUBECONFIG ##
+k8s_worker_kubeconfig:
+  apiVersion: v1
+  kind: Config
+  clusters:
+  - name: "{{ k8s_cluster_name }}"
+    cluster:
+      certificate-authority: "{{ k8s_certs_dir }}/{{ k8s_ssl_config['ca']['cert_name'] }}"
+      server: "https://{{ k8s_master_host }}"  # for SSL and HA, needs external LB (ie HAProxy+Keepalived) or DNS records
+      #server: "http://127.0.0.1:8080"           # if each master is worker too we can connect on loopback (no HA)
+  users:
+  - name: kubelet
+    user:
+      client-certificate: "{{ k8s_certs_dir }}/{{ k8s_kubelet_hostname }}-worker.pem"
+      client-key: "{{ k8s_certs_dir }}/{{ k8s_kubelet_hostname }}-worker-key.pem"
+  contexts:
+  - context:
+      cluster: "{{ k8s_cluster_name }}"
+      user: kubelet
+    name: kubelet-context
+  current-context: kubelet-context
+
+
+k8s_controller_manager_kubeconfig:
+  apiVersion: v1
+  kind: Config
+  clusters:
+  - name: "{{ k8s_cluster_name }}"
+    cluster:
+      certificate-authority: "{{ k8s_certs_dir }}/{{ k8s_ssl_config['ca']['cert_name'] }}"
+      server: "https://{{ k8s_master_host }}"  # for SSL and HA, needs external LB (ie HAProxy+Keepalived) or DNS records
+      #server: "http://127.0.0.1:8080"          # if each master is worker too we can connect on loopback (no HA)
+  users:
+  - name: kube-controller-manager
+    user:
+      client-certificate: "{{ k8s_certs_dir }}/{{ k8s_ssl_config['kcm']['cert_name'] }}"
+      client-key: "{{ k8s_certs_dir }}/{{ k8s_ssl_config['kcm']['key_name'] }}"
+  contexts:
+  - context:
+      cluster: "{{ k8s_cluster_name }}"
+      user: kube-controller-manager
+    name: kube-cm-context
+  current-context: kube-cm-context
+
+
+k8s_scheduler_kubeconfig:
+  apiVersion: v1
+  kind: Config
+  clusters:
+  - name: "{{ k8s_cluster_name }}"
+    cluster:
+      certificate-authority: "{{ k8s_certs_dir }}/{{ k8s_ssl_config['ca']['cert_name'] }}"
+      server: "https://{{ k8s_master_host }}"  # for SSL and HA, needs external LB (ie HAProxy+Keepalived) or DNS records
+      #server: "http://127.0.0.1:8080"          # if each master is worker too we can connect on loopback (no HA)
+  users:
+  - name: kube-scheduler
+    user:
+      client-certificate: "{{ k8s_certs_dir }}/{{ k8s_ssl_config['scheduler']['cert_name'] }}"
+      client-key: "{{ k8s_certs_dir }}/{{ k8s_ssl_config['scheduler']['key_name'] }}"
+  contexts:
+  - context:
+      cluster: "{{ k8s_cluster_name }}"
+      user: kube-scheduler
+    name: kube-scheduler-context
+  current-context: kube-scheduler-context
+
+
+k8s_proxy_kubeconfig:
+  apiVersion: v1
+  kind: Config
+  clusters:
+  - name: "{{ k8s_cluster_name }}"
+    cluster:
+      certificate-authority: "{{ k8s_certs_dir }}/{{ k8s_ssl_config['ca']['cert_name'] }}"
+      server: "https://{{ k8s_master_host }}"  # for SSL and HA, needs external LB (ie HAProxy+Keepalived) or DNS records
+      #server: "http://127.0.0.1:8080"           # if each master is worker too we can connect on loopback (no HA)
+  users:
+  - name: kube-proxy
+    user:
+      client-certificate: "{{ k8s_certs_dir }}/{{ k8s_ssl_config['proxy']['cert_name'] }}"
+      client-key: "{{ k8s_certs_dir }}/{{ k8s_ssl_config['proxy']['key_name'] }}"
+  contexts:
+  - context:
+      cluster: "{{ k8s_cluster_name }}"
+      user: kube-proxy
+    name: kube-proxy-context
+  current-context: kube-proxy-context
+
+
+## SERVICE MANIFESTS ##
+k8s_kube_apiserver:
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: kube-apiserver
+    namespace: kube-system
+    labels:
+      app: apiserver
+  spec:
+    hostNetwork: true
+    containers:
+    - name: kube-apiserver
+      image: gcr.io/google_containers/kube-apiserver-amd64:{{ k8s_version }}
+      command:
+      - /bin/sh
+      - -c
+      - /usr/local/bin/kube-apiserver
+       --bind-address=0.0.0.0
+       --advertise-address={{ priv_ip }}
+       --cloud-provider={{ k8s_cloud_provider }}
+       --etcd-servers={{ k8s_etcd_endpoints }}
+       --allow-privileged=true
+       --anonymous-auth=false
+       --apiserver-count={{ groups['k8s-masters'] | length }}
+       --authorization-mode=Node,RBAC
+       --authorization-policy-file={{ k8s_certs_dir }}/authorization-policy.json
+       --authorization-rbac-super-user=admin
+       --service-cluster-ip-range={{ k8s_service_ip_range }}
+       --secure-port={{ k8s_api_secure_port }}
+       --insecure-port=8080
+       --service-node-port-range={{ k8s_apiserver_node_port_range }}
+       --storage-backend=etcd2
+       --kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP,LegacyHostIP
+       --kubelet-certificate-authority={{ k8s_certs_dir }}/{{ k8s_ssl_config['ca']['cert_name'] }}
+       --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds,NodeRestriction
+       --tls-cert-file={{ k8s_certs_dir }}/{{ k8s_ssl_config['apiserver']['cert_name'] }}
+       --tls-private-key-file={{ k8s_certs_dir }}/{{ k8s_ssl_config['apiserver']['key_name'] }}
+       --tls-ca-file={{ k8s_certs_dir }}/{{ k8s_ssl_config['ca']['cert_name'] }}
+       --client-ca-file={{ k8s_certs_dir }}/{{ k8s_ssl_config['ca']['cert_name'] }}
+       --runtime-config=api/all=true,batch/v2alpha1=true,authentication.k8s.io/v1beta1=true,authorization.k8s.io/v1beta1=true,rbac.authorization.k8s.io/v1beta1=true,apps/v1beta2=true,extensions/v1beta1=true,extensions/v1beta1/networkpolicies=true
+       --feature-gates=PersistentLocalVolumes=true,ExpandPersistentVolumes=true,MountPropagation=true,PodPriority=true
+       --logtostderr=true
+       --v=6 1>>{{ k8s_master_log }} 2>&1
+       # VolumeScheduling=true for 1.9+
+      livenessProbe:
+        httpGet:
+          host: 127.0.0.1
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 15
+        timeoutSeconds: 15
+      ports:
+      - containerPort: "{{ k8s_api_secure_port }}"
+        hostPort: "{{ k8s_api_secure_port }}"
+        name: https
+      - containerPort: 8080
+        hostPort: 8080
+        name: local
+      resources:
+        requests:
+          cpu: 150m
+      volumeMounts:
+      - mountPath: /etc/ssl
+        name: etcssl
+        readOnly: true
+      - mountPath: /usr/share/ca-certificates
+        name: cacertificates
+        readOnly: true
+      - mountPath: "{{ k8s_certs_dir }}"
+        name: srvkube
+        readOnly: true
+      - mountPath: "{{ k8s_master_log }}"
+        name: logfile
+    volumes:
+    - hostPath:
+        path: /etc/ssl
+      name: etcssl
+    - hostPath:
+        path: /usr/share/ca-certificates
+      name: cacertificates
+    - hostPath:
+        path: "{{ k8s_certs_dir }}"
+      name: srvkube
+    - hostPath:
+        path: "{{ k8s_master_log }}"
+        type: FileOrCreate
+      name: logfile
+
+k8s_kube_controller_manager:
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    labels:
+      k8s-app: kube-controller-manager
+    name: kube-controller-manager
+    namespace: kube-system
+  spec:
+    hostNetwork: true
+    containers:
+    - name: kube-controller-manager
+      image: gcr.io/google_containers/kube-controller-manager:{{ k8s_version }}
+      command:
+      - /bin/sh
+      - -c
+      - /usr/local/bin/kube-controller-manager 
+        --cloud-provider={{ k8s_cloud_provider }}
+        --allocate-node-cidrs=true 
+        --cluster-cidr={{ k8s_pod_network }}
+        --cluster-name={{ k8s_cluster_name }}
+        --service-cluster-ip-range={{ k8s_service_ip_range }}
+        --leader-elect=true 
+        --root-ca-file={{ k8s_certs_dir }}/{{ k8s_ssl_config['ca']['cert_name'] }}
+        --configure-cloud-routes=false
+        --service-account-private-key-file={{ k8s_certs_dir }}/{{ k8s_ssl_config['apiserver']['key_name'] }}
+        --use-service-account-credentials=true 
+        --kubeconfig={{ k8s_kcm_kubeconfig }}
+        --cluster-signing-cert-file={{ k8s_certs_dir }}/{{ k8s_ssl_config['ca']['cert_name'] }}
+        --cluster-signing-key-file={{ k8s_certs_dir }}/{{ k8s_ssl_config['apiserver']['key_name'] }}
+        --feature-gates=PersistentLocalVolumes=true,ExpandPersistentVolumes=true,PodPriority=true
+        --v=2 1>>{{ k8s_kcm_log }} 2>&1
+      livenessProbe:
+        httpGet:
+          host: 127.0.0.1
+          path: /healthz
+          port: 10252
+        initialDelaySeconds: 15
+        timeoutSeconds: 15
+      resources:
+        requests:
+          cpu: 100m
+      volumeMounts:
+      - mountPath: /etc/ssl
+        name: etcssl
+        readOnly: true
+      - mountPath: "{{ k8s_certs_dir }}"
+        name: srvkube
+        readOnly: true
+      - mountPath: "{{ k8s_kcm_log }}"
+        name: logfile
+      - mountPath: "{{ k8s_kcm_dir }}"
+        name: varlibkcm
+        readOnly: true
+    volumes:
+    - hostPath:
+        path: /etc/ssl
+      name: etcssl
+    - hostPath:
+        path: "{{ k8s_certs_dir }}"
+      name: srvkube
+    - hostPath:
+        path: "{{ k8s_kcm_log }}"
+        type: FileOrCreate
+      name: logfile
+    - hostPath:
+        path: "{{ k8s_kcm_dir }}"
+      name: varlibkcm
+
+k8s_kube_scheduler:
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    labels:
+      k8s-app: kube-scheduler
+    name: kube-scheduler
+    namespace: kube-system
+  spec:
+    hostNetwork: true
+    containers:
+    - name: kube-scheduler
+      image: gcr.io/google_containers/kube-scheduler:{{ k8s_version }}
+      command:
+      - /bin/sh
+      - -c
+      - /usr/local/bin/kube-scheduler
+        --leader-elect=true
+        --kubeconfig={{ k8s_kube_scheduler_kubeconfig }}
+        --feature-gates=PersistentLocalVolumes=true,ExpandPersistentVolumes=true,PodPriority=true
+        --v=2 1>>{{ k8s_kube_scheduler_log }} 2>&1
+      livenessProbe:
+        httpGet:
+          host: 127.0.0.1
+          path: /healthz
+          port: 10251
+        initialDelaySeconds: 15
+        timeoutSeconds: 15
+      resources:
+        requests:
+          cpu: 100m
+      volumeMounts:
+      - mountPath: /etc/ssl
+        name: etcssl
+        readOnly: true
+      - mountPath: "{{ k8s_certs_dir }}"
+        name: srvkube
+        readOnly: true
+      - mountPath: "{{ k8s_kube_scheduler_log }}"
+        name: logfile
+      - mountPath: "{{ k8s_kube_scheduler_dir }}"
+        name: varlibkubescheduler
+        readOnly: true
+    volumes:
+    - hostPath:
+        path: /etc/ssl
+      name: etcssl
+    - hostPath:
+        path: "{{ k8s_certs_dir }}"
+      name: srvkube
+    - hostPath:
+        path: "{{ k8s_kube_scheduler_log }}"
+        type: FileOrCreate
+      name: logfile
+    - hostPath:
+        path: "{{ k8s_kube_scheduler_dir }}"
+      name: varlibkubescheduler
+
+k8s_kube_proxy:
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      scheduler.alpha.kubernetes.io/critical-pod: ""
+    labels:
+      k8s-app: kube-proxy
+      tier: node
+    name: kube-proxy
+    namespace: kube-system
+  spec:
+    hostNetwork: true
+    containers:
+    - name: kube-proxy
+      image: gcr.io/google_containers/kube-proxy:{{ k8s_version }}
+      imagePullPolicy: IfNotPresent
+      command:
+      - /bin/sh
+      - -c
+      - echo -998 > /proc/$$$/oom_score_adj && kube-proxy 
+        --kubeconfig={{ k8s_kube_proxy_kubeconfig }}
+        --conntrack-max-per-core=131072
+        --proxy-mode={{ k8s_kube_proxy_mode }}
+        --resource-container=""
+        --cluster-cidr={{ k8s_pod_network }}
+        --v=2 2>&1 | /usr/bin/tee {{ k8s_kube_proxy_log }}
+      resources:
+        requests:
+          cpu: 100m
+      securityContext:
+        privileged: true
+      volumeMounts:
+      - mountPath: "{{ k8s_certs_dir }}"
+        name: srvkube
+        readOnly: true
+      - mountPath: "{{ k8s_kube_proxy_log }}"
+        name: logfile
+      - mountPath: "{{ k8s_kube_proxy_kubeconfig }}"
+        name: kubeconfig
+        readOnly: true
+      - mountPath: /etc/ssl/certs
+        name: ssl-certs-hosts
+        readOnly: true
+    volumes:
+    - hostPath:
+        path: "{{ k8s_certs_dir }}"
+      name: srvkube
+    - hostPath:
+        path: "{{ k8s_kube_proxy_log }}"
+        type: FileOrCreate
+      name: logfile
+    - hostPath:
+        path: "{{ k8s_kube_proxy_kubeconfig }}"
+      name: kubeconfig
+    - hostPath:
+        path: /etc/ssl/certs
+      name: ssl-certs-hosts
