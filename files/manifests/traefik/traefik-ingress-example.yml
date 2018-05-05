@@ -1,0 +1,47 @@
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: traefik-reverse-proxy
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+spec:
+  tls:
+    - secretName: ssl-cert1
+      hosts:
+        - host1.tld
+        - www.host1.tld
+    - secretName: ssl-cert2
+      hosts:
+        - host2.tld
+        - www.host2.tld
+    - secretName: ssl-cert3
+      hosts:
+        - host3.tld
+        - www.host3.tld
+  rules:
+    - host: host1.tld
+      http:
+        paths:
+          - path: /dashboard
+            backend:
+              serviceName: traefik-console-service
+              servicePort: 8080
+          - path: /
+            backend:
+              serviceName: test-nginx-1
+              servicePort: 80
+    - host: host2.tld
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: test-nginx-2
+              servicePort: 80
+    - host: host3.tld
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: test-nginx-3
+              servicePort: 80

@@ -1,0 +1,64 @@
+# traefik-deployment.yml
+---
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: traefik-ingress-controller
+  namespace: kube-system
+  labels:
+    k8s-app: traefik-ingress-lb
+spec:
+  replicas: 1
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      k8s-app: traefik-ingress-lb
+  strategy:
+    # better for stateless services, no outage
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: traefik-ingress-lb
+        name: traefik-ingress-lb
+    spec:
+      serviceAccountName: traefik-ingress-controller
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - name: config
+        configMap:
+          name: traefik-conf
+      # Enable this only if using static wildcard cert
+      # stored in a k8s Secret instead of LetsEncrypt
+      #- name: ssl
+      #  secret:
+      #    secretName: traefik-cert
+      containers:
+      - image: traefik
+        name: traefik-ingress-lb
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 200m
+            memory: 30Mi
+          requests:
+            cpu: 100m
+            memory: 20Mi
+        volumeMounts:
+        - mountPath: "/config"
+          name: "config"
+        # Enable this only if using static wildcard cert
+        # stored in a k8s Secret instead of LetsEncrypt
+        #- mountPath: "/ssl"
+        #  name: "ssl"
+        ports:
+        - containerPort: 80
+        - containerPort: 443
+        - containerPort: 8080
+        args:
+        - --web
+        - --kubernetes
+        - --configfile=/config/traefik.toml

@@ -1,0 +1,49 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: kube-system
+  name: traefik-conf
+data:
+  traefik.toml: |
+    # traefik.toml
+    logLevel = "DEBUG"
+    defaultEntryPoints = ["http","https"]
+    [entryPoints]
+      [entryPoints.http]
+      address = ":80"
+      [entryPoints.http.redirect]
+      entryPoint = "https"
+      # Enable basic authentication
+      #[entryPoints.https.auth.basic]
+      #users = ["igorc:$apr1$k2qslCn6$0OgA8vhnyC8nJ99YfJMOM/"]
+      [entryPoints.https]
+      address = ":443"
+      [entryPoints.https.tls]
+      # Enable this only if using static wildcard cert
+      # stored in a k8s Secret instead of LetsEncrypt
+      #[[entryPoints.https.tls.certificates]]
+      #CertFile = "/ssl/tls.crt"
+      #KeyFile = "/ssl/tls.key"
+    [kubernetes]
+    [web]
+    address = ":8080"
+    # Enable basic authentication
+    #  [web.auth.basic]
+    #    users = ["igorc:$apr1$k2qslCn6$0OgA8vhnyC8nJ99YfJMOM/"]
+    [acme]
+    email = "igorc@virtual.local"
+    #storage = "traefik/acme/account"   # for KV store
+    storage = "/acme/acme.json"
+    entryPoint = "https"
+    onDemand = true
+    onHostRule = true
+    # For Staging, comment out to go to Prod
+    caServer = "https://acme-staging.api.letsencrypt.org/directory"
+    [[acme.domains]]
+    main = "virtual.local"
+    sans = ["app1.virtual.local", "app2.virtual.local"]
+    [etcd]
+    endpoint = "127.0.0.1:4001"
+    watch = true
+    prefix = "/traefik"
