@@ -1,0 +1,61 @@
+---
+- name: kubernetes ssl
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/k8s_ssl_certs.yml
+    - import_tasks: tasks/k8s_ssl_service_components.yml
+  vars_files:
+    - defaults/main.yml
+
+- name: etcd, flannel, docker, binaries, lb, services
+  hosts: k8s-masters 
+  gather_facts: true 
+  become: yes
+  user: igorc
+  vars_files:
+    - defaults/main.yml
+  handlers:
+    - import_tasks: handlers/main.yml
+  tasks:
+    - import_tasks: tasks/k8s_hosts_update.yml
+    - import_tasks: tasks/k8s_etcd.yml
+    - import_tasks: tasks/k8s_flanneld.yml
+    - import_tasks: tasks/k8s_docker.yml
+    - import_tasks: tasks/k8s_binaries.yml
+    - name: check for installed binary
+      shell: 'kubelet --version 2>/dev/null | grep -E -o "v[0-9]+*\.[0-9]+\..*"'
+      register: check_kubelet
+      failed_when: no
+    - import_tasks: tasks/k8s_binaries.yml
+      when: check_kubelet.stdout != k8s_version
+    - import_tasks: tasks/k8s_kubelet.yml
+    - import_tasks: tasks/k8s_kube_apiserver.yml
+    - import_tasks: tasks/k8s_haproxy.yml
+    - import_tasks: tasks/k8s_keepalived.yml
+    - import_tasks: tasks/k8s_controller_manager.yml
+    - import_tasks: tasks/k8s_scheduler.yml
+    - import_tasks: tasks/k8s_proxy.yml
+
+- name: kubernetes addons and kubectl local setup
+  hosts: localhost 
+  gather_facts: False
+  tasks:
+    - import_tasks: tasks/k8s_kubectl.yml
+      when: k8s_kubectl_setup is defined and k8s_kubectl_setup|bool
+    - import_tasks: tasks/k8s_kube-dns.yml
+      when: k8s_cluster_dns_setup is defined and k8s_cluster_dns_setup|bool
+            and k8s_cluster_dns is defined and k8s_cluster_dns == "kube-dns"
+    - import_tasks: tasks/k8s_kube-dns_autoscale.yml
+      when: k8s_cluster_dns is defined and k8s_cluster_dns == "kube-dns"
+            and k8s_cluster_dns_autoscale is defined and k8s_cluster_dns_autoscale|bool
+            and k8s_cluster_dns_setup is defined and k8s_cluster_dns_setup|bool
+    - import_tasks: tasks/k8s_coredns.yml
+      when: k8s_cluster_dns is defined and k8s_cluster_dns == "coredns"
+            and k8s_cluster_dns_setup is defined and k8s_cluster_dns_setup|bool
+    - import_tasks: tasks/k8s_heapster.yml
+      when: k8s_heapster_setup is defined and k8s_heapster_setup|bool
+    - import_tasks: tasks/k8s_dashboard.yml
+      when: k8s_dashboard_setup is defined and k8s_dashboard_setup|bool
+  vars_files:
+    - defaults/main.yml

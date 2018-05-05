@@ -1,0 +1,19 @@
+[local]
+localhost
+
+[k8s-masters]
+k9s01.virtual.local priv_ip=192.168.0.151
+k9s02.virtual.local priv_ip=192.168.0.152
+k9s03.virtual.local priv_ip=192.168.0.153
+
+[k8s-workers]
+k9s01.virtual.local priv_ip=192.168.0.151
+k9s02.virtual.local priv_ip=192.168.0.152
+k9s03.virtual.local priv_ip=192.168.0.153
+
+[k8s-nodes:children]
+k8s-masters
+k8s-workers
+
+[k8s-nodes:vars]
+ansible_ssh_user=igorc
