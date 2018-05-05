@@ -5,7 +5,9 @@ Bare metal Kubernetes cluster with Ansible
 
 This repository is to support the [Kubernetes cluster step-by-step](https://icicimov.github.io/blog/kubernetes/Kubernetes-cluster-step-by-step/) blog but in automated way via Ansible.
 
-This is little bit different from the blog page in that only `kubelet` and `etcd` run as systemd services on the host, all other K8S components are created as static Pods via manifests. The cluster `RBAC` and `Node` authorization are enabled for increased security just to mention some of the features. All K8S componenets authenticate to each other via certificate and the API communication internal and external is over SSL too. Docker is using the `overlay2` storage driver which should provide best file system performance.
+This is little bit different from the blog page in that only `kubelet`, `flanneld` and `etcd` run as systemd services on the host, all other K8S components are created as static Pods via manifests. It still provisions 3 hosts as Masters and Workers in the same time.
+
+The cluster `RBAC` and `Node` authorization are enabled for increased security just to mention some of the features. All K8S components authenticate to each other via certificate and the API communication internal and external is over SSL too. Docker is using the `overlay2` storage driver which should provide best file system performance.
 
 This is a short list of Kubernetes and other components in the cluster and their current versions:
 
