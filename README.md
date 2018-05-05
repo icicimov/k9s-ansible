@@ -36,7 +36,7 @@ k8s_heapster_setup: false
 k8s_dashboard_setup: false
 ```
 
-They control features like installing the Dashboard, Heapster for monitoring, kube-dns for DNS resolution inside the cluster (with optional auto-scaling) and installing and setup of local `kubectl` and `kubeconfig` file for cluster CLI. The following variables are in control of the Flanneld overlay network, the Pods and Services network:
+They control features like installing the Dashboard, Heapster for monitoring, kube-dns for DNS resolution inside the cluster (with optional auto-scaling and core-dns as alternative) and installing and setup of local `kubectl` and `kubeconfig` file for cluster CLI. The following variables are in control of the `Flanneld` overlay network, the Pods and Services network:
 
 ```
 k8s_flanneld_subnet: '10.1.0.0/16'
@@ -55,4 +55,39 @@ After reviewing the repository and some parameters tuning to meet your need just
 ansible-playbook -i hosts k9s-provision.yml
 ```
 
-to provision the cluster.
+to provision the cluster. 
+
+# Managing the cluster
+
+When finished, assuming `k8s_kubectl_setup` has been set to `true`, you should see a `kubeconfig` file `~/.kube/config` with similar content to this:
+
+```
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: /home/igorc/k9s-ansible/files/ssl/k9s.virtual.local/ca/ca.pem
+    server: https://k9s-api.virtual.local
+  name: k9s.virtual.local
+contexts:
+- context:
+    cluster: k9s.virtual.local
+    user: admin
+  name: admin-context
+current-context: admin-context
+kind: Config
+preferences: {}
+users:
+- name: admin
+  user:
+    client-certificate: /home/igorc/k9s-ansible/files/ssl/k9s.virtual.local/admins/admin.pem
+    client-key: /home/igorc/k9s-ansible/files/ssl/k9s.virtual.local/admins/admin-key.pem
+```
+
+installed locally. To check the cluster health run:
+
+```
+kubectl get nodes -o wide
+kubectl get pods -n kube-system
+```
+
+The `admin` user and all cluster SSL certificates will be installed under `k9s-ansible/files/ssl/` directory.
