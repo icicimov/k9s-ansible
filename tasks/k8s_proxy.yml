@@ -1,0 +1,55 @@
+---
+# Kube-proxy setup
+
+- name: kube-proxy | ensure k8s certs and manifests directories exist
+  file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+  with_items:
+    - "{{ k8s_kubelet_manifests_dir }}"
+    - "{{ k8s_certs_dir }}"
+    - "{{ k8s_kube_proxy_dir }}"
+
+- name: kube-proxy | ensure the node certs are present
+  copy:
+    src: "{{ item }}"
+    dest: "{{ k8s_certs_dir }}"
+    force: no
+  with_items:
+    - "{{ k8s_ssl_proxy_path }}/{{ k8s_ssl_config['proxy']['cert_name'] }}"
+    - "{{ k8s_ssl_proxy_path }}/{{ k8s_ssl_config['proxy']['key_name'] }}"
+
+- name: kube-proxy | install kube-proxy kubeconfig file
+  template:
+    src: "{{ k8s_template_dir }}/generate_yaml_template.j2"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  with_items:
+    - { yaml: "{{ k8s_proxy_kubeconfig }}", dest: "{{ k8s_kube_proxy_kubeconfig }}" }
+
+- name: kube-proxy | install kube-proxy manifest
+  template:
+    src: "{{ k8s_template_dir }}/generate_yaml_template.j2"
+    dest: "{{ k8s_kubelet_manifests_dir }}/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+  with_items:
+    - { yaml: "{{ k8s_kube_proxy }}", dest: "kube-proxy.yml" }
+
+- name: kube-proxy | ensure nodePort range is reserved 
+  sysctl: 
+     name: net.ipv4.ip_local_reserved_ports 
+     value: "{{ k8s_apiserver_node_port_range }}" 
+     sysctl_set: yes 
+     state: present 
+     reload: yes 
+  when: k8s_apiserver_node_port_range is defined and k8s_apiserver_node_port_range != ""
+

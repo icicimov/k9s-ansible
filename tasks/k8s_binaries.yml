@@ -1,0 +1,69 @@
+---
+# Install K8S binaries
+
+- name: k8s binaries | ensure Kubernetes needed directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0750
+  with_items:
+    - "{{ k8s_install_dir }}"
+    - "{{ k8s_certs_dir }}"
+
+- name: k8s binaries | download Kubernetes tarball
+  get_url:
+    url: "https://github.com/kubernetes/kubernetes/releases/download/{{ k8s_version }}/kubernetes.tar.gz"
+    dest: "/opt/kubernetes.tar.gz"
+    force: "yes"
+  register: download_k8s_tarball
+
+- name: k8s binaries | extract Kubernetes
+  unarchive:
+    copy: "no"
+    src: /opt/kubernetes.tar.gz
+    dest: "{{ k8s_install_dir }}"
+  when: "'OK' in download_k8s_tarball.msg"
+
+- name: k8s binaries | check for Kubernetes binaries installer script
+  stat:
+    path: "{{ k8s_install_dir }}/kubernetes/cluster/get-kube-binaries.sh"
+  register: k8s_installer_script
+
+- name: k8s binaries | run get-kube-binaries.sh
+  shell: "KUBERNETES_SKIP_CONFIRM=yes ./get-kube-binaries.sh"
+  args:
+    chdir: "{{ k8s_install_dir }}/kubernetes/cluster/"
+  when: k8s_installer_script.stat.executable|bool
+
+- name: k8s binaries | extract Kubernetes server nested binaries
+  unarchive:
+    copy: "no"
+    src: "{{ k8s_install_dir }}/kubernetes/server/kubernetes-server-linux-amd64.tar.gz"
+    dest: "{{ k8s_install_dir }}"
+
+- name: cleanup
+  shell: "rm -rf {{ k8s_install_dir }}/kubernetes/server/bin/*.tar {{ k8s_install_dir }}/kubernetes/server/kubernetes-server-linux-amd64.tar.gz"
+
+- name: remove existing binary hard links
+  shell: "rm -f /usr/local/bin/*kube*"
+
+- name: k8s binaries | hard link the kubernetes binaries to /usr/local/bin
+  file:
+    src: "{{ k8s_install_dir }}/kubernetes/server/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: hard
+  with_items:
+    - hyperkube
+    - kube-apiserver
+    - kube-controller-manager
+    - kubectl
+    - kubelet
+    - kube-proxy
+    - kube-scheduler
+    - kubeadm
+  when: '"OK" in download_k8s_tarball.msg'
+
+- name: k8s binaries | cleanup to free some disk space
+  file:
+    path: "{{ k8s_install_dir }}/kubernetes/server/kubernetes/server"
+    state: absent

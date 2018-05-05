@@ -1,0 +1,14 @@
+---
+- name: generate k8s heapster standalone rbac manifest
+  template:
+    src: "{{ k8s_template_dir }}/heapster-standalone-rbac.yml.j2"
+    dest: "/tmp/heapster-standalone-rbac.yml"
+    mode: 0644
+  delegate_to: localhost
+
+- name: create k8s heapster service and deployment
+  command: "{{ item }}"
+  with_items:
+    - "kubectl apply -f /tmp/heapster-standalone-rbac.yml"
+  changed_when: false
+

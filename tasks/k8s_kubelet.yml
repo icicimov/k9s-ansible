@@ -1,0 +1,85 @@
+---
+# Kubelet setup
+
+- name: kubelet | ensure kubelet home manifests and k8s certs directories exist
+  file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+  with_items:
+    - "{{ k8s_kubelet_manifests_dir }}"
+    - "{{ k8s_kubelet_dir }}"
+    - "{{ k8s_certs_dir }}"
+
+- name: kubelet | copy over the CA files
+  copy:
+    src: "{{ item }}"
+    dest: "{{ k8s_certs_dir }}"
+  with_items:
+    - "{{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['cert_name'] }}"
+    - "{{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['key_name'] }}"
+    - "{{ k8s_ssl_workers_path }}/{{ k8s_kubelet_hostname }}-worker.pem"
+    - "{{ k8s_ssl_workers_path }}/{{ k8s_kubelet_hostname }}-worker-key.pem"
+  notify: restart kubelet
+
+- name: kubelet | install our CA into local system CA dir
+  shell: "cp /srv/kubernetes/ca.pem /usr/local/share/ca-certificates/kube-ca.crt && update-ca-certificates"
+
+- name: kubelet | install kubelet kubeconfig file
+  template:
+    src: "{{ k8s_template_dir }}/generate_yaml_template.j2"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  with_items:
+    - { yaml: "{{ k8s_worker_kubeconfig }}", dest: "{{ k8s_kubelet_kubeconfig }}" }
+  notify: restart kubelet
+
+- name: kubelet | install kubelet default config file
+  template:
+    src: "kubelet_default_config.j2"
+    dest: "{{ k8s_kubelet_default_config }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  notify: restart kubelet
+
+- name: kubelet | configure kubelet systemd service
+  template:
+    src: "kubelet.service.j2"
+    dest: /etc/systemd/system/kubelet.service
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  notify: restart kubelet
+
+- meta: flush_handlers
+
+- name: kubelet | ensure kubelet service is started
+  systemd:
+    name: "kubelet"
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: kubelet | verify kubelet is running
+  command: systemctl status kubelet
+  register: kubelet_is_running
+  until: kubelet_is_running|success
+  retries: 3
+  delay: 5
+
+- name: kubelet | wait for kubelet healthz-port to be open
+  wait_for:
+    host: 127.0.0.1
+    port: 10248
+    delay: 5
+    connect_timeout: 2
+    timeout: 1800
+  changed_when: false

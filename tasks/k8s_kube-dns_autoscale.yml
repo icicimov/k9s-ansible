@@ -1,0 +1,13 @@
+---
+- name: generate k8s dns service manifest
+  copy:
+    src: "files/manifests/dns-horizontal-autoscaler.yml"
+    dest: "/tmp/dns-horizontal-autoscaler.yml"
+    mode: 0644
+  delegate_to: localhost
+
+- name: create k8s coredns service and deployment
+  command: "{{ item }}"
+  with_items:
+    - "kubectl apply -f /tmp/dns-horizontal-autoscaler.yml"
+  changed_when: false

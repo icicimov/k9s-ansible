@@ -1,0 +1,171 @@
+---
+
+- name: ssl certs | create ssl folders
+  file:
+    path: "{{ item }}"
+    state: directory
+    recurse: yes
+  with_items:
+    - "{{ k8s_ssl_ca_path }}"
+    - "{{ k8s_ssl_api_server_path }}"
+    - "{{ k8s_ssl_workers_path }}"
+    - "{{ k8s_ssl_admin_path }}"
+  delegate_to: localhost
+
+# Create a Cluster Root CA
+
+- name: ssl certs | check OpenSSL Cluster ROOT CA key exists
+  stat:
+    path: "{{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['key_name'] }}"
+  register: ssl_ca
+  delegate_to: localhost
+
+- name: ssl certs | check OpenSSL Cluster ROOT CA PEM exists
+  stat:
+    path: "{{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['cert_name'] }}"
+  register: ssl_ca_pem
+  delegate_to: localhost
+
+- name: ssl certs | create OpenSSL Cluster ROOT CA
+  command: "{{ item }}"
+  with_items:
+    - "openssl genrsa -out {{ k8s_ssl_ca_path  }}/{{ k8s_ssl_config['ca']['key_name'] }} {{ k8s_ssl_bytes_encrypt  }}"
+    - "openssl req -x509 -new -nodes -key {{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['key_name'] }}
+       -days {{ k8s_ssl_valid_days  }} -out {{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['cert_name'] }}
+       -subj '{{ k8s_ssl_config['ca']['subj'] }}'"
+  when: not ssl_ca.stat.exists|bool
+  delegate_to: localhost
+
+# Kubernetes API Server Keypair
+
+- name: ssl certs | generate OpenSSL configuration file
+  template:
+    src: "k8s_openssl_api.cnf.j2"
+    dest: "{{ k8s_ssl_api_server_path }}/openssl.cnf"
+  delegate_to: localhost
+
+- name: ssl certs | check the API Server Keypair KEY
+  stat:
+    path: "{{ k8s_ssl_api_server_path }}/{{ k8s_ssl_config['apiserver']['key_name'] }}"
+  register: apiserver_key
+  delegate_to: localhost
+
+- name: ssl certs | generate the API Server Keypair KEY
+  command: "openssl genrsa -out {{ k8s_ssl_api_server_path }}/{{ k8s_ssl_config['apiserver']['key_name'] }} {{ k8s_ssl_bytes_encrypt }}"
+  when: apiserver_key is not defined or apiserver_key.stat.exists == False
+  delegate_to: localhost
+
+- name: ssl certs | check the API Server Keypair CSR
+  stat:
+    path: "{{ k8s_ssl_api_server_path }}/{{ k8s_ssl_config['apiserver']['csr_name'] }}"
+  register: apiserver_csr
+  delegate_to: localhost
+
+- name: ssl certs | generate the API Server Keypair CSR
+  command: "openssl req -new -key {{ k8s_ssl_api_server_path }}/{{ k8s_ssl_config['apiserver']['key_name'] }}
+            -out {{ k8s_ssl_api_server_path }}/{{ k8s_ssl_config['apiserver']['csr_name'] }}
+            -subj '{{ k8s_ssl_config['apiserver']['subj'] }}'
+            -config {{ k8s_ssl_api_server_path }}/openssl.cnf"
+  when: apiserver_csr is not defined or apiserver_csr.stat.exists == False
+  delegate_to: localhost
+
+- name: ssl certs | check the API Server Keypair PEM
+  stat:
+    path: "{{ k8s_ssl_api_server_path }}/{{ k8s_ssl_config['apiserver']['cert_name'] }}"
+  register: apiserver_pem
+  delegate_to: localhost
+
+- name: ssl certs | generate the API Server Keypair PEM
+  command: "openssl x509 -req -in {{ k8s_ssl_api_server_path }}/{{ k8s_ssl_config['apiserver']['csr_name'] }} 
+            -CA {{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['cert_name'] }}
+            -CAkey {{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['key_name'] }} -CAcreateserial
+            -out {{ k8s_ssl_api_server_path }}/{{ k8s_ssl_config['apiserver']['cert_name'] }}
+            -days {{ k8s_ssl_valid_days }} -extensions v3_req -extfile {{ k8s_ssl_api_server_path }}/openssl.cnf"
+  when: apiserver_pem is not defined or apiserver_pem.stat.exists == False
+  delegate_to: localhost
+
+# Kubernetes Worker Keypairs (used by Kubelet with Node Authorizer anbled in API)
+
+- name: ssl certs | generate Worker OpenSSL configuration file
+  template:
+    src: "k8s_workers_openssl.cnf.j2"
+    dest: "{{ k8s_ssl_workers_path }}/{{ item }}_openssl.cnf"
+  with_items: ["{{ groups['k8s-nodes'] }}"]
+  delegate_to: localhost
+
+- name: ssl certs | check the Workers Keypairs PEM
+  stat:
+    path: "{{ k8s_ssl_workers_path }}/{{ item }}-worker-key.pem"
+  with_items: ["{{ groups['k8s-nodes'] }}"]
+  register: workers_key
+  delegate_to: localhost
+
+- name: ssl certs | generate the Workers Keypair KEY
+  command: "openssl genrsa -out {{ k8s_ssl_workers_path }}/{{ item['item'] }}-worker-key.pem {{ k8s_ssl_bytes_encrypt }}"
+  when: not item.stat.exists|bool
+  with_items: ["{{ workers_key.results }}"]
+  delegate_to: localhost
+
+- name: ssl certs | check the Workers Keypair CSR
+  stat:
+    path: "{{ k8s_ssl_workers_path }}/{{ item }}-worker.csr"
+  with_items: ["{{ groups['k8s-nodes'] }}"]
+  register: workers_csr
+  delegate_to: localhost
+
+- name: ssl certs | generate the Workers Keypair CSR
+  command: "openssl req -new -key {{ k8s_ssl_workers_path }}/{{ item['item'] }}-worker-key.pem
+            -out {{ k8s_ssl_workers_path }}/{{ item['item'] }}-worker.csr
+            -subj '/O=system:nodes/CN=system:node:{{ item['item'] }}'
+            -config {{ k8s_ssl_workers_path }}/{{ item['item'] }}_openssl.cnf"
+  when: not item.stat.exists|bool
+  with_items: ["{{ workers_csr.results }}"]
+  delegate_to: localhost
+
+- name: ssl certs | check the Workers Keypair PEM
+  stat:
+    path: "{{ k8s_ssl_workers_path }}/{{ item }}-worker.pem"
+  with_items: ["{{ groups['k8s-nodes'] }}"]
+  register: workers_pem
+  delegate_to: localhost
+
+- name: ssl certs | generate the Workers Keypair PEM
+  command: "openssl x509 -req -in {{ k8s_ssl_workers_path }}/{{ item['item'] }}-worker.csr
+            -CA {{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['cert_name'] }}
+            -CAkey {{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['key_name'] }}
+            -CAcreateserial -out {{ k8s_ssl_workers_path }}/{{ item['item'] }}-worker.pem
+            -extensions v3_req -extfile {{ k8s_ssl_workers_path }}/{{ item['item'] }}_openssl.cnf
+            -days {{ k8s_ssl_valid_days }}"
+  when: not item.stat.exists|bool
+  with_items: ["{{ workers_pem.results }}"]
+  delegate_to: localhost
+
+# Generate the Cluster Administrator Keypair
+
+- name: ssl certs | generate OpenSSL configuration file for the Admin user
+  template:
+    src: "k8s_openssl.cnf.j2"
+    dest: "{{ k8s_ssl_admin_path }}/openssl.cnf"
+  delegate_to: localhost
+
+- name: ssl certs | check the Cluster Administrator Keypair
+  stat:
+    path: "{{ k8s_ssl_admin_path }}/{{ k8s_ssl_config['admin']['cert_name'] }}"
+  register: admin_cert
+  delegate_to: localhost
+
+- name: ssl certs | generate the Cluster Administrator Keypair
+  command: "{{ item }}"
+  with_items:
+    - "openssl genrsa -out {{ k8s_ssl_admin_path }}/{{ k8s_ssl_config['admin']['key_name'] }} {{ k8s_ssl_bytes_encrypt }}"
+    - "openssl req -new -key {{ k8s_ssl_admin_path }}/{{ k8s_ssl_config['admin']['key_name'] }}
+       -out {{ k8s_ssl_admin_path }}/{{ k8s_ssl_config['admin']['csr_name'] }}
+       -subj '{{ k8s_ssl_config['admin']['subj'] }}'"
+    - "openssl x509 -req -in {{ k8s_ssl_admin_path }}/{{ k8s_ssl_config['admin']['csr_name'] }}
+       -CA {{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['cert_name'] }}
+       -CAkey {{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['key_name'] }}
+       -CAcreateserial -out {{ k8s_ssl_admin_path }}/{{ k8s_ssl_config['admin']['cert_name'] }}
+       -extensions v3_req -extfile {{ k8s_ssl_admin_path }}/openssl.cnf
+       -days {{ k8s_ssl_valid_days }}"
+  when: admin_cert is not defined or not admin_cert.stat.exists|bool
+  delegate_to: localhost

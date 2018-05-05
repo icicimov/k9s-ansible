@@ -1,0 +1,13 @@
+---
+- name: coredns | generate k8s dns service manifest
+  template:
+    src: "{{ k8s_template_dir }}/core-dns.yml.j2"
+    dest: "/tmp/coredns.yml"
+    mode: 0644
+  delegate_to: localhost
+
+- name: coredns | create k8s coredns service and deployment
+  command: "{{ item }}"
+  with_items:
+    - "kubectl apply -f /tmp/coredns.yml"
+  changed_when: false

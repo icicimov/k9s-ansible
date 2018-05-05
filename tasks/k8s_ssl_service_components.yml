@@ -1,0 +1,76 @@
+---
+# Kubelet and Master Components Keypair
+
+- name: create ssl folders
+  file:
+    path: "{{ k8s_ssl_local_path }}/{{ item }}"
+    state: directory
+    recurse: yes
+  with_items:
+    - "{{ k8s_ssl_components }}"
+  delegate_to: localhost
+
+- name: generate OpenSSL configuration file
+  template:
+    src: "k8s_openssl.cnf.j2"
+    dest: "{{ k8s_ssl_local_path }}/{{ item }}/openssl.cnf"
+  with_items:
+    - "{{ k8s_ssl_components }}"
+  delegate_to: localhost
+
+- name: check the Service Keypair KEY
+  stat:
+    path: "{{ k8s_ssl_local_path }}/{{ item }}/{{ k8s_ssl_config[item]['key_name'] }}"
+  register: server_key
+  with_items: 
+    - "{{ k8s_ssl_components }}"
+  delegate_to: localhost
+
+- name: generate the Service Keypair KEY
+  command: "openssl genrsa -out {{ k8s_ssl_local_path }}/{{ item.0 }}/{{ k8s_ssl_config[item.0]['key_name'] }} {{ k8s_ssl_bytes_encrypt }}"
+  with_together: 
+    - "{{ k8s_ssl_components }}"
+    - "{{ server_key.results }}"
+  when: not (item.1.item == item.0 and item.1.stat.exists|bool)
+  delegate_to: localhost
+
+
+- name: check the Service Keypair CSR
+  stat:
+    path: "{{ k8s_ssl_local_path }}/{{ item }}/{{ k8s_ssl_config[item]['csr_name'] }}"
+  register: server_csr
+  with_items: 
+    - "{{ k8s_ssl_components }}"
+  delegate_to: localhost
+
+- name: generate the Service Keypair CSR
+  command: "openssl req -new -key {{ k8s_ssl_local_path }}/{{ item.0 }}/{{ k8s_ssl_config[item.0]['key_name'] }}
+           -out {{ k8s_ssl_local_path }}/{{ item.0 }}/{{ k8s_ssl_config[item.0]['csr_name'] }}
+           -subj '{{ k8s_ssl_config[item.0]['subj'] }}' -config {{ k8s_ssl_local_path }}/{{ item.0 }}/openssl.cnf"
+  with_together: 
+    - "{{ k8s_ssl_components }}"
+    - "{{ server_csr.results }}"
+  when: not (item.1.item == item.0 and item.1.stat.exists|bool)
+  delegate_to: localhost
+
+
+- name: check the Service Keypair PEM
+  stat:
+    path: "{{ k8s_ssl_local_path }}/{{ item }}/{{ k8s_ssl_config[item]['cert_name'] }}"
+  register: server_pem
+  with_items: 
+    - "{{ k8s_ssl_components }}"
+  delegate_to: localhost
+
+- name: generate the Service Keypair PEM
+  command: "openssl x509 -req -in {{ k8s_ssl_local_path }}/{{ item.0 }}/{{ k8s_ssl_config[item.0]['csr_name'] }}
+           -CA {{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['cert_name'] }}
+           -CAkey {{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['key_name'] }} -CAcreateserial
+           -out {{ k8s_ssl_local_path }}/{{ item.0 }}/{{ k8s_ssl_config[item.0]['cert_name'] }}
+           -days {{ k8s_ssl_valid_days }} 
+           -extensions v3_req -extfile {{ k8s_ssl_local_path }}/{{ item.0 }}/openssl.cnf"
+  with_together: 
+    - "{{ k8s_ssl_components }}"
+    - "{{ server_pem.results }}"
+  when: not (item.1.item == item.0 and item.1.stat.exists|bool)
+  delegate_to: localhost

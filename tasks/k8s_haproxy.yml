@@ -1,0 +1,25 @@
+---
+# HAProxy setup
+# For Debian we need backports enabled on the host
+
+- name: haproxy | install haproxy 
+  command: apt-get install -y haproxy -t jessie-backports
+
+- name: haproxy | additional packages
+  apt: pkg={{ item }} state=present
+  with_items: [ 'socat' ]
+
+- name: haproxy | enable the service
+  lineinfile: >
+    dest=/etc/default/haproxy
+    backrefs=yes
+    state=present
+    regexp="^(#+)?ENABLED="
+    line="ENABLED=1"
+
+- name: haproxy | install the config file
+  template: src=haproxy.cfg.j2 dest=/etc/haproxy/haproxy.cfg backup=yes owner=root group=root mode=0644 
+  notify:
+    - restart syslog
+    - restart haproxy
+

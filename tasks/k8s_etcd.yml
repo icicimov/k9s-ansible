@@ -1,0 +1,90 @@
+---
+# Etcd Setup and Configuration
+
+- name: Create {{ k8s_etcd_group }} group
+  group: 
+    name: "{{ k8s_etcd_group }}" 
+    gid: "{{ k8s_etcd_gid }}" 
+    state: present
+
+- name: Create {{ k8s_etcd_user }} user
+  user:
+    name: "{{ k8s_etcd_user }}"
+    uid: "{{ k8s_etcd_uid }}"
+    group: "{{ k8s_etcd_group }}"
+    createhome: yes
+    home: "{{ k8s_etcd_dir }}"
+    shell: /bin/false
+    state: present
+    system: no
+
+- name: download the etcd tarball
+  get_url:
+    url: "{{ k8s_etcd_download_url }}"
+    dest: "/tmp/{{ k8s_etcd_tarball }}"
+    mode: 0640
+    validate_certs: yes
+    force: yes
+  register: task_etcd_download
+  tags: ["etcd_install"]
+
+- name: extract the tarball
+  unarchive:
+    src: "/tmp/{{ k8s_etcd_tarball }}"
+    dest: "/usr/local/src"
+    remote_src: yes
+  when: task_etcd_download.changed
+  register: task_etcd_extract
+  tags: ["etcd_install"]
+
+- name: copy the binaries
+  command: "cp -p /usr/local/src/{{ k8s_etcd_tarball | regex_replace('.tar.gz$','') }}/{{ item }} /usr/local/bin"
+  with_items: ['etcd', 'etcdctl']
+  when: task_etcd_extract.changed
+  tags: ["etcd_install"]
+
+- name: install the systemd service file
+  template:
+    src: "etcd.service.j2"
+    dest: '/lib/systemd/system/etcd.service'
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    - restart etcd
+
+- name: ensure etcd is started
+  systemd:
+    name: etcd
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: wait for etcd port to be open
+  wait_for:
+    host: 127.0.0.1
+    port: 2379
+    delay: 5
+    connect_timeout: 2
+    timeout: 300
+
+- name: get etcd current config for flanneld
+  command: 'etcdctl get /coreos.com/network/config'
+  register: etcd_net_config
+  changed_when: false
+  ignore_errors: yes
+
+- name: publishing network config to etcd
+  command: "/usr/local/bin/etcdctl set /coreos.com/network/config '{ \"Network\": \"{{ k8s_flanneld_subnet }}\" }'"
+  when: "etcd_net_config.stdout.find('k8s_flanneld_subnet') == -1"
+  changed_when: false
+
+- name: get etcd cluster info
+  command: 'etcdctl cluster-health'
+  register: etcd_status
+  changed_when: false
+
+- name: ensure etcd cluster is healthy
+  assert:
+    that:
+      - "'cluster is healthy' in etcd_status.stdout"

@@ -1,0 +1,29 @@
+---
+- name: create /etc/kubernetes/specs directory
+  file:
+    path: "{{ kubernetes_spec_dir }}"
+    state: directory
+# TODO notify user of the port, ingress
+- name: copy policy-controller.yml to remote
+  template:
+    src: policy-controller.yml
+    dest: "{{ kubernetes_spec_dir }}/policy-controller.yml"
+
+- name: start calico policy controller
+  command: kubectl apply -f {{ kubernetes_spec_dir }}/network-policy-controller.yml
+  register: out
+
+- name: wait until policy controller pods are ready
+  command: kubectl get deployment calico-kube-controllers -n kube-system -o jsonpath='{.status.availableReplicas}'
+  register: readyReplicas
+  until: readyReplicas.stdout|int == 1
+  retries: 24
+  delay: 10
+  failed_when: false
+
+- name: fail if any policy controller pods are not ready
+  fail:
+    msg: "Timed out waiting for policy controller pods to be in the ready state."
+  when: readyReplicas.stdout|int != 1
+
+- debug: var=out.stdout_lines

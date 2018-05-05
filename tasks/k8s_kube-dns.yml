@@ -1,0 +1,13 @@
+---
+- name: kube-dns | generate k8s dns service manifest
+  template:
+    src: "{{ k8s_template_dir }}/kube-dns.yml.j2"
+    dest: "/tmp/kube-dns.yml"
+    mode: 0644
+  delegate_to: localhost
+
+- name: kube-dns | create k8s kube-dns service and deployment
+  command: "{{ item }}"
+  with_items:
+    - "kubectl apply -f /tmp/kube-dns.yml"
+  changed_when: false

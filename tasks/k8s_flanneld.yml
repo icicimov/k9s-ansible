@@ -1,0 +1,59 @@
+---
+# Flanneld Setup and Configuration
+
+- name: flanneld | download the flanneld binary
+  get_url:
+    url: "{{ k8s_flanneld_download_url }}"
+    dest: "{{ k8s_flanneld_binary_dest }}"
+    mode: 0755
+    force: yes
+    validate_certs: yes
+  register: task_flanneld_download
+  tags: ["flanneld_install"]
+
+- name: flanneld | install the systemd service file
+  template:
+    src: "flanneld.service.j2"
+    dest: '/lib/systemd/system/flanneld.service'
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    - restart flanneld
+
+# - name: get Pod network IP range through etcd
+#   uri:
+#     url: "http://{{groups['k8s-masters'][0]['priv_ip']}}:{{ k8s_etcd_client_port }}/v2/keys/coreos.com/network/config"
+#     method: GET
+#     return_content: yes
+#   delegate_to: localhost
+#   register: pod_network_info
+#   when: "k8s_kubelet_network_plugin == ''"
+
+- name: flanneld | configure Pod network IP range through etcd
+  uri:
+    #url: "http://{{ groups['k8s-masters'][0]['priv_ip'] }}:{{ k8s_etcd_client_port }}/v2/keys/coreos.com/network/config"
+    url: "http://127.0.0.1:{{ k8s_etcd_client_port }}/v2/keys/coreos.com/network/config"
+    method: PUT
+    body: "value={ \"Network\": \"{{ k8s_pod_network }}\", \"SubnetLen\": {{ k8s_flannel_subnet_len }}, \"Backend\": {\"Type\": \"{{ k8s_flannel_backend_type }}\"} }"
+  #delegate_to: localhost
+  when: not k8s_kubelet_network_plugin and ansible_fqdn == groups['k8s-masters'][0]
+  #when: k8s_kubelet_network_plugin == '' and pod_network_info.content.find(k8s_pod_network) == -1
+  notify: restart flanneld
+
+- name: flanneld | ensure flanneld is started
+  systemd:
+    name: flanneld
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: flanneld | wait for flannel interface to enable interface
+  shell: "ls -d1 /sys/class/net/*"
+  register: all_interfaces
+  until: all_interfaces.stdout.find('flannel') != -1
+  retries: 24
+  delay: 5
+  changed_when: false
+
+- meta: flush_handlers

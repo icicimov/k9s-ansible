@@ -1,0 +1,45 @@
+---
+# Kube-controller-manager setup
+
+- name: kube-controller-manager | ensure k8s certs and manifests directories exist
+  file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+  with_items:
+    - "{{ k8s_kubelet_manifests_dir }}"
+    - "{{ k8s_certs_dir }}"
+    - "{{ k8s_kcm_dir }}"
+
+- name: kube-controller-manager | ensure the node certs are present
+  copy:
+    src: "{{ item }}"
+    dest: "{{ k8s_certs_dir }}"
+    force: no
+  with_items:
+    - "{{ k8s_ssl_kcm_path }}/{{ k8s_ssl_config['kcm']['cert_name'] }}"
+    - "{{ k8s_ssl_kcm_path }}/{{ k8s_ssl_config['kcm']['key_name'] }}"
+
+- name: kube-controller-manager | install kube-controller-manager kubeconfig file
+  template:
+    src: "{{ k8s_template_dir }}/generate_yaml_template.j2"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  with_items:
+    - { yaml: "{{ k8s_controller_manager_kubeconfig }}", dest: "{{ k8s_kcm_kubeconfig }}" }
+
+- name: kube-controller-manager | install kube-controller-manager manifest
+  template:
+    src: "{{ k8s_template_dir }}/generate_yaml_template.j2"
+    dest: "{{ k8s_kubelet_manifests_dir }}/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+  with_items:
+    - { yaml: "{{ k8s_kube_controller_manager }}", dest: "kube-controller-manager.yml" }

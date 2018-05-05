@@ -1,0 +1,44 @@
+---
+# Kube-apiserver setup
+
+- name: kube-apiserver | ensure k8s certs and manifests directories exist
+  file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+  with_items:
+    - "{{ k8s_kubelet_manifests_dir }}"
+    - "{{ k8s_certs_dir }}"
+
+- name: kube-apiserver | copy over the CA files
+  copy:
+    src: "{{ item }}"
+    dest: "{{ k8s_certs_dir }}"
+  with_items:
+    - "{{ k8s_ssl_api_server_path }}/{{ k8s_ssl_config['apiserver']['cert_name'] }}"
+    - "{{ k8s_ssl_api_server_path }}/{{ k8s_ssl_config['apiserver']['key_name'] }}"
+
+#- name: copy basicauth.csv over 
+#  template:
+#    src: basicauth.csv.j2
+#    dest: "{{ k8s_auth_dir }}/basicauth.csv"
+#    force: no
+
+- name: kube-apiserver | copy authorization-policy.json over for ABAC (just in case)
+  copy:
+    src: authorization-policy.json
+    dest: "{{ k8s_auth_dir }}/authorization-policy.json"
+    force: no
+
+- name: kube-apiserver | install kube-apiserver manifest
+  template:
+    src: "{{ k8s_template_dir }}/generate_yaml_template.j2"
+    dest: "{{ k8s_kubelet_manifests_dir }}/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: no
+  with_items:
+    - { yaml: "{{ k8s_kube_apiserver }}", dest: "kube-apiserver.yml" }

@@ -1,0 +1,55 @@
+---
+
+- name: kubectl | check kubectl version
+  shell: 'kubectl version --short | grep -i Client | grep -o -E "v.*"'
+  register: kubectl_version
+  when: kubectl.stat.exists == true
+  changed_when: false
+
+- name: kubectl | install kubectl localy
+  get_url:
+    url: "https://storage.googleapis.com/kubernetes-release/release/{{ k8s_kubectl_version }}/bin/linux/amd64/kubectl"
+    dest: "/usr/local/bin/kubectl"
+    mode: 0755
+    owner: root
+    group: root
+    force: yes
+  when: not kubectl.stat.exists|bool or kubectl_version.stdout != k8s_kubectl_version
+
+- name: kubectl | configure your workstation kubectl with these lines for admin access
+  debug:
+    msg: "{{ item }}"
+  with_items:
+    - "kubectl config set-cluster {{ k8s_kubectl_cluster_name }} --server=https://{{ k8s_master_host }}
+      --certificate-authority={{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['cert_name'] }}"
+    - "kubectl config set-credentials admin --client-key={{ k8s_ssl_admin_path }}/{{ k8s_ssl_config['admin']['key_name'] }}
+      --client-certificate={{ k8s_ssl_admin_path }}/admin.pem"
+    - "kubectl config set-context {{ k8s_kubectl_cluster_name }} --cluster={{ k8s_kubectl_cluster_name }} --user=admin"
+    - "kubectl config use-context {{ k8s_kubectl_cluster_name }}"
+  delegate_to: localhost
+
+- name: kubectl | configuring your workstation kubectl with for cluster admin access
+  become: no
+  sudo: no
+  shell: "eval {{ item }}"
+  with_items:
+    - "kubectl config set-cluster {{ k8s_cluster_name }} --server=https://{{ k8s_master_host }}
+      --certificate-authority={{ k8s_ssl_ca_path }}/{{ k8s_ssl_config['ca']['cert_name'] }}"
+    - "kubectl config set-credentials admin --client-key={{ k8s_ssl_admin_path }}/{{ k8s_ssl_config['admin']['key_name'] }}
+      --client-certificate={{ k8s_ssl_admin_path }}/admin.pem"
+    - "kubectl config set-context {{ k8s_cluster_name }} --cluster={{ k8s_cluster_name }} --user=admin"
+    - "kubectl config use-context {{ k8s_cluster_name }}"
+  delegate_to: localhost
+
+- name: kubectl | get cluster node list
+  shell: 'kubectl get nodes | grep -c Ready'
+  become: no
+  sudo: no
+  register: kubectl_result
+  ignore_errors: yes
+  changed_when: false
+
+- name: kubectl | ensure kubernetes nodes are present and ready
+  assert:
+    that:
+      - "'0' not in kubectl_result.stdout"

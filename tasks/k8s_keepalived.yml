@@ -1,0 +1,14 @@
+---
+# Keepalived setup
+
+- name: keepalived | install keepalived
+  shell: apt-get install -y -t jessie-backports keepalived
+  notify:
+    - restart keepalived
+
+- name: keepalived | install the config file
+  template: src=keepalived.conf.j2 dest=/etc/keepalived/keepalived.conf backup=yes owner=root group=root mode=0644
+  notify:
+    - restart keepalived
+
+- meta: flush_handlers

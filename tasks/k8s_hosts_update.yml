@@ -1,0 +1,16 @@
+# Populate /etc/hosts with the cluster dns/ip's
+---
+- name: hosts | Build hosts file
+  lineinfile:
+    dest: /etc/hosts
+    regexp: "^{{ hostvars[item]['priv_ip'] }}"
+    line: "{{ hostvars[item]['priv_ip'] }} {{ item }} {{ item.split('.')[0] }}"
+    state: present
+  with_items: "{{ ansible_play_hosts }}"
+
+- name: hosts | Build hosts file
+  lineinfile:
+    dest: /etc/hosts
+    regexp: "^{{ k8s_master_ip }}"
+    line: "{{ k8s_master_ip }} {{ k8s_master_host }} {{ k8s_master_host.split('.')[0] }}"
+    state: present

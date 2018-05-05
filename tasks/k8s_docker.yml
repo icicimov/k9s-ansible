@@ -1,0 +1,85 @@
+---
+# Docker Setup and Configuration
+
+- name: ensure docker systemd directory exist
+  file:
+    path: '/etc/systemd/system/docker.service.d'
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+
+- name: configure Docker systemd options
+  template:
+    src: "40-flannel.conf.j2"
+    dest: '/etc/systemd/system/docker.service.d/40-flannel.conf'
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart docker
+
+- name: add Docker engine gpg key
+  apt_key:
+    keyserver: "{{ k8s_docker_engine_apt_srv }}"
+    id: "{{ k8s_docker_engine_gpg_key }}"
+    state: present
+  tags: ["docker_install"]
+
+- name: add Docker engine repository
+  template: 
+    src: docker.list.j2
+    dest: /etc/apt/sources.list.d/docker.list
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart docker
+  register: add_docker_engine_repo
+  tags: ["docker_install"]
+
+- name: Update apt
+  apt: update_cache=yes
+  when: ansible_os_family == "Debian" and add_docker_engine_repo.changed
+  register: result
+  until: result|success
+  retries: 10
+  tags: ["docker_install"]
+
+- name: install Docker engine dependencies
+  apt: pkg="{{ item }}" state=present
+  with_items:
+    - apt-transport-https
+    - ca-certificates
+    - curl
+    - gnupg2
+    - software-properties-common
+    - bridge-utils
+
+- name: install Docker engine
+  apt: pkg="docker-engine={{ k8s_docker_engine_version }}" state=present
+  when: add_docker_engine_repo.changed
+
+- name: install the systemd socket file
+  template:
+    src: 'docker.socket.j2'
+    dest: '/lib/systemd/system/docker.socket'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: install the systemd service file
+  template:
+    src: 'docker.service.j2'
+    dest: '/etc/systemd/system/docker.service'
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart docker
+
+- name: ensure docker is started
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- meta: flush_handlers
