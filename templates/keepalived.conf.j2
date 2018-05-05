@@ -1,0 +1,30 @@
+vrrp_script haproxy-check {
+    script "killall -0 haproxy"
+    interval 2
+    weight 20
+}
+ 
+vrrp_instance haproxy-vip {
+    state BACKUP
+    priority 101
+    interface eth0
+    virtual_router_id 47
+    advert_int 3
+ 
+    unicast_src_ip {{ priv_ip }}
+    unicast_peer {
+{% for ip in groups['k8s-masters']|map('extract', hostvars, ['priv_ip'])|list|sort %}
+{% if ip != priv_ip %}
+        {{ ip }}
+{% endif %}
+{% endfor %} 
+    }
+ 
+    virtual_ipaddress {
+        {{ k8s_master_ip }}
+    }
+ 
+    track_script {
+        haproxy-check weight 20
+    }
+}

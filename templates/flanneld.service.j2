@@ -1,0 +1,26 @@
+[Unit]
+Description=Network fabric for containers
+Documentation=https://github.com/coreos/flannel
+After=network.target
+After=network-online.target
+Wants=network-online.target
+After=etcd.service
+Before=docker.service
+
+[Service]
+Type=notify
+Restart=always
+RestartSec=5
+RuntimeDirectory=flannel
+EnvironmentFile=-/etc/default/flanneld
+ExecStartPre=/bin/mkdir -p {{ k8s_flanneld_subnet_dir }}
+ExecStart={{ k8s_flanneld_binary_dest }} \
+  -etcd-endpoints={{ k8s_flanneld_etcd_endpoints }} \
+  -logtostderr={{ k8s_flanneld_logtostderr }} \
+  -ip-masq={{ k8s_flanneld_ip_masq }} \
+  -public-ip={{ priv_ip }} \
+  -subnet-dir={{ k8s_flanneld_subnet_dir }} \
+  -subnet-file={{ k8s_flanneld_subnet_file }}
+
+[Install]
+WantedBy=multi-user.target

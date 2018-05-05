@@ -1,0 +1,42 @@
+[Unit]
+Description=Docker Application Container Engine
+Documentation=https://docs.docker.com
+After=network-online.target docker.socket
+Wants=network-online.target
+Requires=docker.socket
+
+[Service]
+Type=notify
+# FlannelD subnet setup
+EnvironmentFile={{ k8s_flanneld_subnet_file }}
+# the default is not to use systemd for cgroups because the delegate issues still
+# exists and systemd currently does not support the cgroup feature set required
+# for containers run by docker
+ExecStart=/usr/bin/dockerd --bip=${FLANNEL_SUBNET} --mtu=${FLANNEL_MTU} \
+  --iptables={{ k8s_docker_iptables }} --ip-masq={{ k8s_docker_ip_masq }} \
+  --ip-forward={{ k8s_docker_ip_forward }} --log-driver={{ k8s_docker_log_driver }} \
+  --log-level={{ k8s_docker_log_level }} --log-opt=max-file={{ k8s_docker_log_max_file }} \
+  --log-opt=max-size={{ k8s_docker_log_max_size }} \
+  --storage-driver={{ k8s_docker_storage_driver }} -H fd://
+ExecReload=/bin/kill -s HUP $MAINPID
+LimitNOFILE=1048576
+# Having non-zero Limit*s causes performance problems due to accounting overhead
+# in the kernel. We recommend using cgroups to do container-local accounting.
+LimitNPROC=infinity
+LimitCORE=infinity
+# Uncomment TasksMax if your systemd version supports it.
+# Only systemd 226 and above support this version.
+#TasksMax=infinity
+TimeoutStartSec=0
+# set delegate yes so that systemd does not reset the cgroups of docker containers
+Delegate=yes
+# kill only the docker process, not all processes in the cgroup
+KillMode=process
+# restart the docker process if it exits prematurely
+Restart=on-failure
+StartLimitBurst=3
+StartLimitInterval=60s
+MountFlags=shared
+
+[Install]
+WantedBy=multi-user.target

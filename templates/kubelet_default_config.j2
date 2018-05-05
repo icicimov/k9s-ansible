@@ -1,0 +1,33 @@
+# /etc/default/kubelet
+DAEMON_ARGS="--v=2 \
+--cloud-provider={{ k8s_cloud_provider }} \
+--hairpin-mode={{ k8s_kubelet_hairpin_mode }} \
+--address={{ priv_ip }} \
+--anonymous-auth={{ k8s_kubelet_anon_auth }} \
+--authentication-token-webhook={{ k8s_kubelet_authen_token_webhook }} \
+--authorization-mode={{ k8s_kubelet_author_mode }} \
+--allow-privileged={{ k8s_kubelet_allow_priv }} \
+--enable-custom-metrics={{ k8s_kubelet_enable_metrics }} \
+--cgroup-root= \
+--runtime-cgroups=/systemd/system.slice \
+--kubelet-cgroups=/systemd/system.slice \
+--cluster-dns={{ k8s_dns_service_ip }} \
+--cluster-domain={{ k8s_cluster_domain }} \
+--eviction-hard={{ k8s_kubelet_eviction_hard }} \
+--kubeconfig={{ k8s_kubelet_kubeconfig }} \
+--require-kubeconfig=true \
+--pod-manifest-path=/etc/kubernetes/manifests \
+--register-node=true \
+--container-runtime={{ k8s_cri }} \
+--docker=unix:///var/run/docker.sock \
+--tls-cert-file={{ k8s_certs_dir }}/{{ k8s_kubelet_hostname }}-worker.pem \
+--tls-private-key-file={{ k8s_certs_dir }}/{{ k8s_kubelet_hostname }}-worker-key.pem \
+--client-ca-file={{ k8s_certs_dir }}/{{ k8s_ssl_config['ca']['cert_name'] }} \
+--cni-bin-dir=/etc/kubernetes/cni/net.d \
+--network-plugin={{ k8s_kubelet_network_plugin }} \
+--hostname-override={{ k8s_kubelet_hostname }} \
+--node-ip={{ priv_ip }} \
+--feature-gates=PersistentLocalVolumes=true \
+--fail-swap-on=false \
+--serialize-image-pulls={{ k8s_kubelet_ser_image_pulls }} \
+--node-labels=kubernetes.io/role=master,node-role.kubernetes.io/master="

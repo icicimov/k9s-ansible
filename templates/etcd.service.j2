@@ -1,0 +1,38 @@
+{% macro initial_cluster() -%}
+{% for host in groups['k8s-masters'] -%}
+  {{ hostvars[host]['ansible_hostname'] }}={{ k8s_etcd_peer_url_scheme }}://
+  {%- if k8s_etcd_interface is defined and k8s_etcd_interface != "" -%}
+    {{ hostvars[host]['ansible_' + k8s_etcd_interface].ipv4.address }}
+  {%- else -%}
+    {{ hostvars[host].ansible_default_ipv4.address }}
+  {%- endif -%}
+:{{ k8s_etcd_peer_port }}
+  {%- if not loop.last -%},{%- endif -%}
+{%- endfor -%}
+{% endmacro -%}
+
+[Unit]
+Description=etcd key-value store
+Documentation=https://github.com/coreos/etcd
+
+[Service]
+User=etcd
+Type=notify
+ExecStart=/usr/local/bin/etcd \
+ --name {{ ansible_hostname }} \
+ --data-dir {{ k8s_etcd_dir }} \
+ --initial-advertise-peer-urls http://{{ priv_ip }}:{{ k8s_etcd_peer_port }} \
+ --listen-peer-urls http://{{ priv_ip }}:{{ k8s_etcd_peer_port }} \
+ --listen-client-urls http://{{ priv_ip }}:{{ k8s_etcd_client_port }},http://127.0.0.1:{{ k8s_etcd_client_port }},http://{{ priv_ip }}:{{ k8s_etcd_flanneld_port }} \
+ --advertise-client-urls http://{{ priv_ip }}:{{ k8s_etcd_client_port }},http://127.0.0.1:{{ k8s_etcd_client_port }},http://{{ priv_ip }}:{{ k8s_etcd_flanneld_port }} \
+ --initial-cluster-token {{ k8s_cluster_token }} \
+ --initial-cluster {{ initial_cluster() }} \
+ --initial-cluster-state new \
+ --heartbeat-interval {{ k8s_etcd_heartbeat_interval }} \
+ --election-timeout {{ k8s_etcd_election_timeout }}
+Restart=always
+RestartSec=10s
+LimitNOFILE=40000
+
+[Install]
+WantedBy=multi-user.target

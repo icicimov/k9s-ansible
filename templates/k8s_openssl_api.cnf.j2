@@ -1,0 +1,30 @@
+{% for item in k8s_openssl_config|sort %}
+[{{ item }}]
+{% if k8s_openssl_config[item] %}
+{% for k in k8s_openssl_config[item]|sort %}
+{% if k == 'DNS' %}
+{% set ns = namespace(count=0) %}
+{% for dns in k8s_openssl_config[item][k] %}
+  {{ k }}.{{ loop.index0 }} = {{ dns }}
+{% set ns.count = ns.count + 1 %}
+{% endfor %}
+{% for host in groups['k8s-masters'] %}
+  {{ k }}.{{ ns.count }} = {{ host }}
+{% set ns.count = ns.count + 1 %}
+{% endfor %}
+{% elif k == 'IP' %}
+{% set ns = namespace(count=0) %}
+{% for ip in k8s_openssl_config[item][k] %}
+  {{ k }}.{{ loop.index0 }} = {{ ip }}
+{% set ns.count = ns.count + 1 %}
+{% endfor %}
+{% for ip in groups['k8s-masters']|map('extract', hostvars, ['priv_ip'])|list|sort %}
+  {{ k }}.{{ ns.count }} = {{ ip }}
+{% set ns.count = ns.count + 1 %}
+{% endfor %}
+{% else %}
+  {{ k }} = {{ k8s_openssl_config[item][k] }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}

@@ -1,0 +1,13 @@
+{% for category in k8s_workers_openssl_config|sort %}
+[{{ category }}]
+{% if k8s_workers_openssl_config[category] %}
+{% for k in k8s_workers_openssl_config[category]|sort %}
+  {{ k }} = {{ k8s_workers_openssl_config[category][k] }}
+{% endfor %}
+{% else %}
+{% if category == 'alt_names' %}
+  DNS.1 = {{ item }}
+  IP.1 = {{ hostvars[item]['priv_ip'] }}
+{% endif %}
+{% endif %}
+{% endfor %}

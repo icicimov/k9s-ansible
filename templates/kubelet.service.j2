@@ -1,0 +1,17 @@
+[Unit]
+Description=Kubernetes Kubelet Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=docker.service
+
+[Service]
+EnvironmentFile={{ k8s_kubelet_default_config }}
+ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
+ExecStartPre=/bin/mkdir -p {{ k8s_kubelet_dir }} 
+ExecStart=/usr/local/bin/kubelet "$DAEMON_ARGS"
+Restart=always
+RestartSec=5s
+StartLimitInterval=0
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

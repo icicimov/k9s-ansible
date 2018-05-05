@@ -1,0 +1,12 @@
+{% set ns = namespace(count=0) %}
+[Interface]
+Address = {{ wg_local_ip }}
+PrivateKey = {{ wg_private_key }}
+ListenPort = {{ wg_peer_port }}
+
+{% for peers in wg_peers %}
+[Peer]
+PublicKey = {{ wg_peer_pub_key }}
+AllowedIps = {{ wg_peer_ip }}/32
+Endpoint = {{ wg_peer_ip }}:{{ wg_peer_port }}
+{% endfor %}
