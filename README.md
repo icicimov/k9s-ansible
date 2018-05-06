@@ -47,7 +47,13 @@ k8s_service_ip: '10.3.0.1'
 
 # Installation
 
-Basic `hosts` inventory file and main Ansible playbook `k9s-provision.yml` are supplied. The hosts are assumed running in local LAN with 192.168.0.0/24 CIDR.
+Basic `hosts` inventory file and main Ansible playbook `k9s-provision.yml` are provided. The playbook consists of three parts:
+
+* SSL certificates part, executed locally, that produces all the certificates needed for the Kubernetes services to identify them selfs to the clients and each other
+* Cluster provisioning part that creates and configures all Kubernetes services on the hosts
+* Kubernetes addons part, executed locally, that sets up the `kubectl` CLI tool and configures the local host user running Ansible for cluster access and (optionally) installs some addons like the essential Kube-DNS service for cluster internal DNS resolution, the Dashboard plugin and the Heapster addon (used with Helm)
+
+The hosts are assumed to be running in local LAN with 192.168.0.0/24 CIDR.
 
 After reviewing the repository and some parameters tuning to meet your need just run:
 
