@@ -11,7 +11,7 @@ The cluster `RBAC` and `Node` authorization are enabled for increased security j
 
 This is a short list of Kubernetes and other components in the cluster and their current versions:
 
-* os: debian-jessie
+* os: debian-jessie (kernel 4.9.0 from backports)
 * etcd: 2.3.8
 * k8s: 1.8.8
 * dashboard: 1.7.1
